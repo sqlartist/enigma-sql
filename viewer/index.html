@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exploded Enigma</title>
+<style>
+  :root {
+    --bg-top: #f3f4f6; --bg-bottom: #d9dde2;
+    --ink: #1c2228; --muted: #5b6670; --panel: rgba(255, 255, 255, 0.88);
+    --line: rgba(28, 34, 40, 0.12); --accent: #a8781f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-top: #22272c; --bg-bottom: #101316;
+      --ink: #e9ecef; --muted: #9aa5ae; --panel: rgba(28, 32, 37, 0.88);
+      --line: rgba(233, 236, 239, 0.14); --accent: #e0ac4c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg-top: #22272c; --bg-bottom: #101316;
+    --ink: #e9ecef; --muted: #9aa5ae; --panel: rgba(28, 32, 37, 0.88);
+    --line: rgba(233, 236, 239, 0.14); --accent: #e0ac4c;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: linear-gradient(var(--bg-top), var(--bg-bottom));
+    color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  #view { position: fixed; inset: 0; }
+  .panel {
+    position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 600px; margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 16px; backdrop-filter: blur(8px); box-sizing: border-box;
+  }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .row label { font-weight: 600; white-space: nowrap; }
+  input[type=range] { flex: 1; accent-color: var(--accent); min-width: 120px; }
+  button {
+    font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  #info { margin-top: 8px; color: var(--muted); min-height: 1.45em; }
+  #info b { color: var(--ink); font-weight: 600; }
+  details { margin-top: 6px; color: var(--muted); }
+  summary { cursor: pointer; }
+  ol { margin: 6px 0 0; padding-left: 22px; max-height: 28vh; overflow: auto; }
+  li { margin: 2px 0; }
+  .title {
+    position: fixed; top: 16px; left: 16px; right: 16px; color: var(--muted); font-size: 13px; pointer-events: none;
+  }
+  .title b { color: var(--ink); font-size: 15px; display: block; }
+  body.still .panel, body.still .title { display: none; }
+</style>
+<script src="enigma_data.js"></script>
+<script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div class="title"><b>The Enigma, from the database</b>Every solid, and the order it comes apart in, was computed in PostGIS.</div>
+<div class="panel">
+  <div class="row">
+    <label for="explode">Explode</label>
+    <input id="explode" type="range" min="0" max="1" step="0.001" value="0">
+    <button id="play" type="button">Take apart</button>
+  </div>
+  <div id="info">Drag to turn, scroll to zoom. Point at a part to name it.</div>
+  <details>
+    <summary>The order it comes apart in</summary>
+    <ol id="order"></ol>
+  </details>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const D = window.ENIGMA;
+const GAP = { x: 16, y: 45, z: 30 };   // mm per round when fully exploded
+
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(200, 400, 250);
+scene.add(sun, new THREE.HemisphereLight(0xffffff, 0x8a8f96, 0.5));
+
+const camera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
+camera.position.set(330, 480, 720);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 0, 10);
+controls.minDistance = 100;
+controls.maxDistance = 2500;
+
+const MAT = {
+  wood:     new THREE.MeshStandardMaterial({ color: 0x8a5a33, metalness: 0.0, roughness: 0.7 }),
+  plate:    new THREE.MeshStandardMaterial({ color: 0x3a3d42, metalness: 0.6, roughness: 0.45 }),
+  bakelite: new THREE.MeshStandardMaterial({ color: 0x1d1e21, metalness: 0.1, roughness: 0.35 }),
+  gilt:     new THREE.MeshStandardMaterial({ color: 0xe2b65c, metalness: 1.0, roughness: 0.30 }),
+  steel:    new THREE.MeshStandardMaterial({ color: 0xd3d8dd, metalness: 1.0, roughness: 0.25 }),
+  dial:     new THREE.MeshStandardMaterial({ color: 0xf4f0e6, metalness: 0.0, roughness: 0.6 }),
+  lamp:     new THREE.MeshStandardMaterial({ color: 0xf6dd8a, metalness: 0.0, roughness: 0.2, emissive: 0x6a5010 }),
+};
+const lit = new Map();
+function highlight(m) {
+  if (!lit.has(m)) { const h = m.clone(); h.emissive = new THREE.Color(0x7a5a10); lit.set(m, h); }
+  return lit.get(m);
+}
+function meshOf(pos, material) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, MAT[material] || MAT.steel);
+  mesh.userData.base = mesh.material;
+  return mesh;
+}
+
+// The database has z up; three.js has y up.
+const machine = new THREE.Group();
+machine.rotation.x = -Math.PI / 2;
+scene.add(machine);
+
+const parts = [];
+for (const p of D.parts) {
+  const g = new THREE.Group();
+  g.userData = p;
+  for (const pc of p.pieces) g.add(meshOf(pc.pos, pc.material));
+  machine.add(g);
+  parts.push(g);
+}
+
+function way(p) {
+  return p.dir[2] > 0 ? 'lifted up' : p.dir[1] < 0 ? 'pulled out of the front'
+       : p.dir[0] < 0 ? 'slid off the left end of the axle' : 'slid off the right end of the axle';
+}
+
+const slider = document.getElementById('explode');
+function setExplode(t) {
+  for (const g of parts) {
+    const p = g.userData;
+    const k = p.level * t;
+    g.position.set(p.dir[0] * k * GAP.x, p.dir[1] * k * GAP.y, p.dir[2] * k * GAP.z);
+  }
+}
+slider.addEventListener('input', () => { target = null; setExplode(+slider.value); });
+
+let target = null;
+const play = document.getElementById('play');
+play.addEventListener('click', () => {
+  target = +slider.value < 0.5 ? 1 : 0;
+  play.textContent = target ? 'Put together' : 'Take apart';
+});
+
+// the order it comes apart in, grouped like the keys and lamps are on the machine
+const rounds = new Map();
+for (const p of D.parts) {
+  if (p.base) continue;
+  const name = p.part.startsWith('Key ') ? 'key ' + p.part.split(': ')[1] + 's'
+             : p.part.startsWith('Lamp ') && p.part !== 'Lamp cover' ? 'lamps'
+             : p.part.startsWith('Plug ') ? 'plugs' : p.part;
+  if (!rounds.has(p.round)) rounds.set(p.round, new Set());
+  rounds.get(p.round).add(name);
+}
+const order = document.getElementById('order');
+for (const [, names] of [...rounds].sort((a, b) => a[0] - b[0])) {
+  const li = document.createElement('li');
+  li.textContent = [...names].join(', ');
+  order.appendChild(li);
+}
+const lastLi = document.createElement('li');
+lastLi.textContent = 'Case, plugboard and axle: what everything came off';
+order.appendChild(lastLi);
+
+const info = document.getElementById('info');
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hovered = null;
+function setHover(g) {
+  if (g === hovered) return;
+  if (hovered) hovered.traverse(m => { if (m.isMesh) m.material = m.userData.base; });
+  hovered = g;
+  if (g) {
+    g.traverse(m => { if (m.isMesh) m.material = highlight(m.userData.base); });
+    const p = g.userData;
+    info.innerHTML = p.base ? `<b>${p.part}</b>: stays put, everything else comes off it`
+                            : `<b>${p.part}</b>: comes off in round ${p.round}, ${way(p)}`;
+  } else {
+    info.textContent = 'Drag to turn, scroll to zoom. Point at a part to name it.';
+  }
+}
+function partOf(obj) { while (obj && !parts.includes(obj)) obj = obj.parent; return obj; }
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(parts, true)[0];
+  setHover(hit ? partOf(hit.object) : null);
+});
+
+function draw() { controls.update(); renderer.render(scene, camera); }
+const panel = document.querySelector('.panel');
+function resize() {
+  const narrow = window.innerWidth < 700 && !document.body.classList.contains('still');
+  view.style.bottom = narrow ? (panel.offsetHeight + 24) + 'px' : '0';
+  view.style.top = narrow ? (document.querySelector('.title').offsetHeight + 16) + 'px' : '0';
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false);
+  renderer.domElement.style.width = w + 'px';
+  renderer.domElement.style.height = h + 'px';
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  draw();
+}
+window.addEventListener('resize', resize);
+panel.querySelector('details').addEventListener('toggle', resize);
+resize();
+setExplode(0);
+
+// ?still: no animation loop (for making pictures headless); draw only when asked
+const STILL = new URLSearchParams(location.search).has('still');
+if (STILL) document.body.classList.add('still');
+if (!STILL) renderer.setAnimationLoop(() => {
+  if (target !== null) {
+    const v = +slider.value, d = target - v;
+    const next = Math.abs(d) < 0.002 ? target : v + d * 0.06;
+    slider.value = next;
+    setExplode(next);
+    if (next === target) target = null;
+  }
+  draw();
+});
+
+// for stills: window.showAt(explode, [camera x, y, z], [target x, y, z])
+window.showAt = (explode, cam, tgt) => {
+  slider.value = explode; setExplode(explode);
+  if (cam) camera.position.set(...cam);
+  if (tgt) controls.target.set(...tgt);
+  resize();
+};
+</script>
+</body>
+</html>
