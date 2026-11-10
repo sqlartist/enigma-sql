@@ -147,10 +147,16 @@ function way(p) {
 }
 
 const slider = document.getElementById('explode');
+// The slider runs through the database's rounds in order. A part starts to move in
+// its own round and keeps going out one layer per round, so the first parts off end
+// furthest out and everything on one side settles at the same moment.
+const ROUNDS = Math.max(...D.parts.map(p => p.round || 0));
+const smooth = u => { const n = Math.floor(u), f = u - n; return n + f * f * (3 - 2 * f); };
 function setExplode(t) {
+  const s = t * ROUNDS;
   for (const g of parts) {
     const p = g.userData;
-    const k = p.level * t;
+    const k = p.round ? smooth(Math.min(Math.max(s - (p.round - 1), 0), p.level)) : 0;
     g.position.set(p.dir[0] * k * GAP.x, p.dir[1] * k * GAP.y, p.dir[2] * k * GAP.z);
   }
 }
@@ -233,8 +239,8 @@ const STILL = new URLSearchParams(location.search).has('still');
 if (STILL) document.body.classList.add('still');
 if (!STILL) renderer.setAnimationLoop(() => {
   if (target !== null) {
-    const v = +slider.value, d = target - v;
-    const next = Math.abs(d) < 0.002 ? target : v + d * 0.06;
+    const v = +slider.value, d = target - v, step = 1 / (60 * 8);   // about 8 seconds, at an even pace
+    const next = Math.abs(d) <= step ? target : v + Math.sign(d) * step;
     slider.value = next;
     setExplode(next);
     if (next === target) target = null;

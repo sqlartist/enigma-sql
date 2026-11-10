@@ -13,9 +13,9 @@ built with SQL Server 2025 geometry (2D) and PostgreSQL/PostGIS (3D), plus Turin
 | `postgresql/enigma_bombe.sql`, `enigma_bombe_run.sql` | The same Bombe in PostgreSQL. |
 | `postgresql/enigma_exploded.sql` | The exploded Enigma: every part as a closed 3D solid (TIN), and the order it comes apart in, worked out by the database. |
 | `tools/export_exploded.py` | Copies the solids and the take-apart order to `viewer/enigma_data.js`. |
-| `viewer/index.html` | three.js viewer: drag to turn, slider to explode. Serve the folder: `python -m http.server 8765 --directory viewer`. |
+| `viewer/index.html` | three.js viewer: drag to turn, slider to explode, in the database's take-apart order, round by round. Serve the folder: `python -m http.server 8765 --directory viewer`. |
 | `tools/draw.py` | Draws the 2D/3D keypress pictures and charts from the scripts' output (matplotlib). |
-| `images/` | Pictures for the post. |
+| `images/` | Pictures for the post, and the explosion as a video (`09-enigma-explode.mp4`) and a GIF. |
 | `enigma-post-draft.md` | The blog post draft. |
 
 Order: `enigma_sqlserver.sql` → `enigma_sqlserver_run.sql` → `enigma_bombe.sql` → `enigma_bombe_run.sql`
