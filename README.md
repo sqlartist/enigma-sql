@@ -11,7 +11,10 @@ built with SQL Server 2025 geometry (2D) and PostgreSQL/PostGIS (3D), plus Turin
 | `postgresql/enigma_postgis.sql` | The machine as 3D drums on an axle: rotor wires stored once, turned with `ST_Affine`; a keypress is one `LINESTRING Z`. |
 | `postgresql/enigma_postgis_run.sql` | Same tests, plus the 3D proofs (`ST_Reverse`). Writes `wires.csv` and `keypress.csv` for drawing. |
 | `postgresql/enigma_bombe.sql`, `enigma_bombe_run.sql` | The same Bombe in PostgreSQL. |
-| `tools/draw.py` | Draws the pictures from the scripts' output (matplotlib). |
+| `postgresql/enigma_exploded.sql` | The exploded Enigma: every part as a closed 3D solid (TIN), and the order it comes apart in, worked out by the database. |
+| `tools/export_exploded.py` | Copies the solids and the take-apart order to `viewer/enigma_data.js`. |
+| `viewer/index.html` | three.js viewer: drag to turn, slider to explode. Serve the folder: `python -m http.server 8765 --directory viewer`. |
+| `tools/draw.py` | Draws the 2D/3D keypress pictures and charts from the scripts' output (matplotlib). |
 | `images/` | Pictures for the post. |
 | `enigma-post-draft.md` | The blog post draft. |
 
